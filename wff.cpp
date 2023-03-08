@@ -48,7 +48,8 @@ Wff::Wff (const Wff &A) {
 }
 
 WffSubstitution Wff::operator = (const Wff &A) const {
-	if (m_type != wffVar) Error("(not var) = sth.");
+	if (m_type != wffVar and m_type != wffFix)
+		Error("(not var/fix) = sth.");
 	return WffSubstitution(m_id, A);
 }
 
@@ -86,6 +87,20 @@ const Wff & Wff::substitute (WffSubstitution S) const {
 	}
 	Error("substitute");
 }
+const Wff & Wff::substituteForce (WffSubstitution S) const {
+	switch (m_type) {
+		case wffNot:
+			return ~(m_pA->substituteForce(S));
+		case wffTo:
+			return m_pA->substituteForce(S) >> m_pB->substituteForce(S);
+		case wffFix:
+		case wffVar:
+			const Wff *p = S.searchId(m_id);
+			return p == nullptr ? *this : *p;
+	}
+	Error("substituteForce");
+}
+
 
 bool Wff::same_as (const Wff & A) const { return m_str == A.m_str; }
 
@@ -103,6 +118,19 @@ bool Wff::is_fixed () const {
 			return false;
 	}
 	Error("is_fixed");
+}
+bool Wff::has_fixed () const {
+	switch (m_type) {
+		case wffNot:
+			return m_pA->has_fixed();
+		case wffTo:
+			return m_pA->has_fixed() or m_pB->has_fixed();
+		case wffFix:
+			return true;
+		case wffVar:
+			return false;
+	}
+	Error("has_fixed");
 }
 
 const Wff & wffMP (const Wff &A, const Wff &B) { // B = (A >> C)

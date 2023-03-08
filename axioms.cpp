@@ -35,3 +35,10 @@ bool Axioms::operator <= (const Axioms &A) const {
 			return false;
 	return true;
 }
+
+bool Axioms::hasWffFix () const {
+	for (const Wff *p : m_list)
+		if (p->has_fixed())
+			return true;
+	return false;
+}

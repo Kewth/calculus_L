@@ -12,13 +12,17 @@ ProofContentType ProofContent::getType () const { return m_type; }
 const Wff & ProofContent::W () const { return *m_pW; }
 void ProofContent::addOffset (size_t offset) {
 	if (m_p1 != size_t(-1)) m_p1 += offset;
-	if (m_p2 != size_t(-1)) m_p1 += offset;
+	if (m_p2 != size_t(-1)) m_p2 += offset;
 }
 
 PCIndex::PCIndex () {}
 PCIndex::PCIndex (size_t i, Proof* p): m_i(i), m_proof(p) {}
 PCIndex PCIndex::sub (WffSubstitution S) {
 	m_proof->sub(m_i, S);
+	return PCIndex(m_proof->getContents().size() - 1, m_proof);
+}
+PCIndex PCIndex::subFix (WffSubstitution S) {
+	m_proof->subFix(m_i, S);
 	return PCIndex(m_proof->getContents().size() - 1, m_proof);
 }
 const Wff & PCIndex::W () const { return m_proof->getContentWff(m_i); }
@@ -43,6 +47,15 @@ Proof & Proof::sub (size_t pos, WffSubstitution S) {
 	endStep();
 	return *this;
 }
+Proof & Proof::subFix (size_t pos, WffSubstitution S) {
+	beginStep("SubFx");
+	if (m_axioms.hasWffFix())
+		Error("SubFx changes the axioms!");
+	m_contents.push_back(ProofContent(pos, size_t(-1), S, Content_SUBFIX,
+				&m_contents[pos].W().substituteForce(S)));
+	endStep();
+	return *this;
+}
 Proof & Proof::MP (size_t p1, size_t p2) {
 	beginStep("MonPe");
 	m_contents.push_back(ProofContent(p1, p2, WffSubstitution(), Content_MP,
@@ -55,6 +68,8 @@ Proof & Proof::Import (const Proof &P) {
 	beginStep("Impor");
 	if (!(P.m_axioms <= m_axioms))
 		Error("can not import");
+	if (!P.m_done)
+		Error("can not import (not done yet)");
 	size_t offset = m_contents.size();
 	for (ProofContent C : P.m_contents) {
 		C.addOffset(offset);
@@ -106,14 +121,29 @@ Proof & Proof::endStep () {
 	return *this;
 }
 
+/* Proof Proof::SubAll (WffSubstitution S) const { */
+/* 	if (!m_done) */
+/* 		Error("not done yet in SubAll"); */
+/* 	Proof P = *this; */
+/* 	P.m_axioms = Axioms(); */
+/* 	for (size_t i = 0; i < m_axioms.size(); i ++) */
+/* 		P.m_axioms = P.m_axioms.add(m_axioms.getAxiom(i).substituteForce(S)); */
+/* 	P.m_pW = &P.m_pW->substituteForce(S); */
+/* 	for (size_t i = 0; i < m_contents.size(); i ++) { */
+/* 		ProofContent pc = m_contents[i]; */
+/* 	} */
+/* 	return P; */
+/* } */
+
 const Wff & Proof::getAxiom (size_t pos) const { return m_axioms.getAxiom(pos); }
 const Axioms & Proof::getAxioms () const { return m_axioms; }
 const Wff & Proof::getContentWff (size_t i) const { return m_contents[i].W(); }
 /* size_t Proof::numberOfContents () const { return m_contents.size(); } */
-PCIndex Proof::getIndex (size_t i) { return PCIndex(i, (Proof*)this); }
+PCIndex Proof::getIndex (size_t i) { return PCIndex(i, this); }
 PCIndex Proof::lastIndex () { return PCIndex(m_contents.size() - 1, (Proof*)this); }
 const Wff & Proof::target () const { return *m_pW; }
 const std::vector<ProofContent> & Proof::getContents () const { return m_contents; }
+bool Proof::isDone () const { return m_done; }
 
 PCIndex MP (PCIndex I, PCIndex J) {
 	if (I.m_proof != J.m_proof)

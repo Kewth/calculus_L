@@ -14,6 +14,7 @@ public:
 	const Wff & getAxiom (std::size_t) const;
 	std::size_t size () const;
 	bool operator <= (const Axioms &) const;
+	bool hasWffFix () const;
 };
 
 #endif

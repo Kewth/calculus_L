@@ -31,9 +31,11 @@ public:
 	const Wff & check (const Wff &) const;
 	const Wff & outputStr () const;
 	const Wff & substitute (WffSubstitution) const;
+	const Wff & substituteForce (WffSubstitution) const;
 	bool same_as (const Wff & A) const;
 	string Str () const;
 	bool is_fixed () const;
+	bool has_fixed () const;
 	friend const Wff & wffMP (const Wff &, const Wff &);
 	friend class Theorem;
 };
