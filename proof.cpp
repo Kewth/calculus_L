@@ -1,66 +1,107 @@
 #include <iostream>
 #include "general.h"
-#include "theorem.h"
 #include "proof.h"
 #include "wff.h"
 
+ProofContent::ProofContent (size_t p1, size_t p2, WffSubstitution S, ProofContentType type, const Wff *pW): m_p1(p1), m_p2(p2), m_S(S), m_type(type), m_pW(pW) {}
+
+size_t ProofContent::getP1 () const { return m_p1; }
+size_t ProofContent::getP2 () const { return m_p2; }
+const WffSubstitution & ProofContent::getSub () const { return m_S; }
+ProofContentType ProofContent::getType () const { return m_type; }
+const Wff & ProofContent::W () const { return *m_pW; }
+void ProofContent::addOffset (size_t offset) {
+	if (m_p1 != size_t(-1)) m_p1 += offset;
+	if (m_p2 != size_t(-1)) m_p1 += offset;
+}
+
+PCIndex::PCIndex () {}
+PCIndex::PCIndex (size_t i, Proof* p): m_i(i), m_proof(p) {}
+PCIndex PCIndex::sub (WffSubstitution S) {
+	m_proof->sub(m_i, S);
+	return PCIndex(m_proof->getContents().size() - 1, m_proof);
+}
+const Wff & PCIndex::W () const { return m_proof->getContentWff(m_i); }
+size_t PCIndex::getPos () const { return m_i; }
+PCIndex PCIndex::checkW (const Wff &w) const { W().check(w); return *this; }
+
 Proof::Proof (Axioms A, const Wff &W):
-	m_axioms(A), m_pW(&W), m_history(), m_done(false) {}
-
-Proof::Proof (Axioms A, const Wff &W, Proof P):
-	m_axioms(A), m_pW(&W), m_history(), m_done(true) {
-		if (!(m_axioms == P.m_axioms))
-			Error("Different axioms");
-		m_pW->check(*P.m_pW);
+	m_axioms(A), m_pW(&W), m_contents(), m_done(false) {
+		for (size_t i = 0; i < A.size(); i ++)
+			m_contents.push_back(ProofContent(
+						size_t(-1), size_t(-1), WffSubstitution(), Content_AXIOM,
+						&A.getAxiom(i)));
 	}
 
-Theorem Proof::getAxiom (size_t pos) const { return m_axioms.getAxiom(pos); }
-Axioms Proof::getAxioms () const { return m_axioms; }
-std::vector<Theorem> Proof::getHistory () const { return m_history; }
+/* Proof::Proof (Axioms A, const Wff &W, Proof P): */
+/* 	m_axioms(A), m_pW(&W), m_contents(), m_done(true) { */
+/* 		if (!(m_axioms == P.m_axioms)) */
+/* 			Error("Different axioms"); */
+/* 		m_pW->check(*P.m_pW); */
+/* 		for (size_t i = 0; i < A.size(); i ++) */
+/* 			m_contents.push_back(ProofContent( */
+/* 						size_t(-1), size_t(-1), WffSubstitution(), Content_AXIOM, */
+/* 						&A.getAxiom(i))); */
+/* 	} */
 
-Proof & Proof::operator << (Theorem t) {
-	if (m_done)
-		Error("PROOF is finished");
-	if (!m_axioms.checkId(t))
-		Error("Add a wrong theorem");
-	m_history.push_back(t);
+Proof & Proof::sub (size_t pos, WffSubstitution S) {
+	m_contents.push_back(ProofContent(pos, size_t(-1), S, Content_SUB,
+				&m_contents[pos].W().substitute(S)));
+	return *this;
+}
+Proof & Proof::MP (size_t p1, size_t p2) {
+	m_contents.push_back(ProofContent(p1, p2, WffSubstitution(), Content_MP,
+				&wffMP(m_contents[p1].W(), m_contents[p2].W())));
 	return *this;
 }
 
-Proof & Proof::operator << (ProofOperator e) {
-	if (e == Qed) {
-		if (m_history.empty())
-			Error("EMPTY PROOF");
-		m_history.back().check(*m_pW);
-		m_done = true;
-	}
-	if (e == Pprint) {
-		if (m_done)
-			std::cout << "\033[32m" ">>>>> PROOF: " << m_pW->Str() << "\033[0m" << std::endl;
-		else
-			std::cout << "\033[31m" ">>>>> PROOF: " << m_pW->Str() << "\033[0m" << std::endl;
-		for (size_t i = 0; i < m_axioms.size(); i ++)
-			m_axioms.getAxiom(i).print();
-		std::cout << "-----" << std::endl;
-		for (Theorem t : m_history)
-			t.print();
-		if (m_done)
-			std::cout << "<<<<< (done)" << std::endl;
-		else
-			std::cout << "<<<<< (to be continued)" << std::endl;
+Proof & Proof::Import (const Proof &P) {
+	if (!(P.m_axioms <= m_axioms))
+		Error("can not import");
+	size_t offset = m_contents.size();
+	for (ProofContent C : P.m_contents) {
+		C.addOffset(offset);
+		m_contents.push_back(C);
 	}
 	return *this;
 }
 
-/* Proof Proof::moveHypothesis (size_t pos) const { */
-/* 	Theorem t = m_axioms.getAxiom(pos); */
-/* 	if (!t.W().is_fixed()) Error("Move a hypothesis which is not fixed"); */
-/* 	Proof P(m_axioms.pop(pos), t.W() >> *m_pW); */
-/* 	P.m_done = true; */
-/* 	return P; */
+Proof & Proof::Qed () {
+	m_pW->check(m_contents.back().W());
+	m_done = true;
+	return *this;
+}
+
+Proof & Proof::Print () {
+	for (size_t i = 0; i < m_contents.size(); i ++) {
+		switch (m_contents[i].getType()) {
+			case Content_SUB: std::cout << "S "; break;
+			case Content_MP: std::cout << "M "; break;
+			case Content_AXIOM: std::cout << "A "; break;
+		}
+		std::cout << i << " ";
+		std::cout << m_contents[i].W().Str() << std::endl;
+	}
+	return *this;
+}
+
+const Wff & Proof::getAxiom (size_t pos) const { return m_axioms.getAxiom(pos); }
+const Axioms & Proof::getAxioms () const { return m_axioms; }
+const Wff & Proof::getContentWff (size_t i) const { return m_contents[i].W(); }
+/* size_t Proof::numberOfContents () const { return m_contents.size(); } */
+PCIndex Proof::getIndex (size_t i) { return PCIndex(i, (Proof*)this); }
+PCIndex Proof::lastIndex () { return PCIndex(m_contents.size() - 1, (Proof*)this); }
+const Wff & Proof::target () const { return *m_pW; }
+const std::vector<ProofContent> & Proof::getContents () const { return m_contents; }
+
+PCIndex MP (PCIndex I, PCIndex J) {
+	if (I.m_proof != J.m_proof)
+		Error("MP not in the same proof");
+	I.m_proof->MP(I.m_i, J.m_i);
+	return PCIndex(I.m_proof->getContents().size() - 1, I.m_proof);
+}
+
+/* Theorem Proof::Thm () const { */
+/* 	if (!m_done) Error("not finished yet"); */
+/* 	return m_contents.back(); */
 /* } */
-
-Theorem Proof::Thm () const {
-	if (!m_done) Error("not finished yet");
-	return m_history.back();
-}

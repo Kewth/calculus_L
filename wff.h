@@ -1,43 +1,43 @@
 #ifndef WFF_H
 #define WFF_H
 #include <string>
-#include "general.h"
+#include <vector>
 using std::string;
 
 class Wff;
 
 class WffSubstitution {
-	int m_wff_id;
-	const Wff *m_pA;
+	std::vector<std::pair<int, const Wff *> > m_list;
 public:
-	WffSubstitution(int, const Wff &);
-	friend class Wff;
+	WffSubstitution (int, const Wff &);
+	WffSubstitution ();
+	const Wff * searchId (int) const;
+	WffSubstitution operator && (const WffSubstitution &);
 };
 
+enum WffType { wffNot, wffTo, wffFix, wffVar };
 class Wff {
-	int m_type; // > 0 : id
-				//  -1 : ~A
-				//  -2 : A->B
-				//  -3 : fixed symbol
+	int m_id;
+	WffType m_type;
 	string m_str;
 	const Wff *m_pA, *m_pB;
-	Wff (int, string, const Wff *, const Wff *);
-	bool _same_as (const Wff & A) const;
+	Wff (int, WffType, string, const Wff *, const Wff *);
 public:
 	Wff (string);
 	Wff (const Wff &);
-	WffSubstitution operator = (const Wff &) const;
+	WffSubstitution operator = (const Wff &) const; // not an assginment
 	const Wff & operator ~ () const;
 	const Wff & operator >> (const Wff &) const;
 	const Wff & check (const Wff &) const;
 	const Wff & outputStr () const;
 	const Wff & substitute (WffSubstitution) const;
+	bool same_as (const Wff & A) const;
 	string Str () const;
 	bool is_fixed () const;
-	friend const Wff & MP (const Wff &, const Wff &);
+	friend const Wff & wffMP (const Wff &, const Wff &);
 	friend class Theorem;
 };
 
-const Wff &MP (const Wff &, const Wff &);
+const Wff & wffMP (const Wff &, const Wff &);
 
 #endif
