@@ -17,6 +17,8 @@ public:
 	const WffSubstitution & getSub () const;
 	ProofContentType getType () const;
 	const Wff & W () const;
+	// TODO: this function is dangeraous,
+	// it should be deleted when we delete "Proof::Import".
 	void addOffset (size_t);
 };
 
@@ -34,23 +36,34 @@ public:
 	friend PCIndex MP (PCIndex, PCIndex);
 };
 
+class ProofSteps {
+public:
+};
+
 class Proof {
 	Axioms m_axioms;
 	const Wff *m_pW; // target
 	std::vector<ProofContent> m_contents;
+	std::vector<std::pair<string, size_t> > m_steps;
+	string m_step_string;
+	int m_step_level;
 	bool m_done;
 public:
 	Proof (Axioms, const Wff &);
-	/* Proof (Axioms, const Wff &, Proof); */
 	Proof & sub (size_t, WffSubstitution);
 	Proof & MP (size_t, size_t);
+	// TODO: "Import" is not an AXIOM so
+	// it can be implemented by user in principle.
+	// It's implemented here just for convenience!
 	Proof & Import (const Proof &);
 	Proof & Qed ();
 	Proof & Print ();
+	Proof & PrintAll ();
+	Proof & beginStep (string);
+	Proof & endStep ();
 	const Wff & getAxiom (size_t) const;
 	const Axioms & getAxioms () const;
 	const Wff & getContentWff (size_t) const;
-	/* size_t numberOfContents () const; */
 	PCIndex getIndex (size_t);
 	PCIndex lastIndex ();
 	const Wff & target () const;

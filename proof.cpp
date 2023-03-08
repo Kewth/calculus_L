@@ -26,36 +26,33 @@ size_t PCIndex::getPos () const { return m_i; }
 PCIndex PCIndex::checkW (const Wff &w) const { W().check(w); return *this; }
 
 Proof::Proof (Axioms A, const Wff &W):
-	m_axioms(A), m_pW(&W), m_contents(), m_done(false) {
-		for (size_t i = 0; i < A.size(); i ++)
+	m_axioms(A), m_pW(&W), m_contents(), m_steps(), m_step_level(0), m_done(false) {
+		for (size_t i = 0; i < A.size(); i ++) {
+			beginStep("Axiom");
 			m_contents.push_back(ProofContent(
 						size_t(-1), size_t(-1), WffSubstitution(), Content_AXIOM,
 						&A.getAxiom(i)));
+			endStep();
+		}
 	}
 
-/* Proof::Proof (Axioms A, const Wff &W, Proof P): */
-/* 	m_axioms(A), m_pW(&W), m_contents(), m_done(true) { */
-/* 		if (!(m_axioms == P.m_axioms)) */
-/* 			Error("Different axioms"); */
-/* 		m_pW->check(*P.m_pW); */
-/* 		for (size_t i = 0; i < A.size(); i ++) */
-/* 			m_contents.push_back(ProofContent( */
-/* 						size_t(-1), size_t(-1), WffSubstitution(), Content_AXIOM, */
-/* 						&A.getAxiom(i))); */
-/* 	} */
-
 Proof & Proof::sub (size_t pos, WffSubstitution S) {
+	beginStep("Subst");
 	m_contents.push_back(ProofContent(pos, size_t(-1), S, Content_SUB,
 				&m_contents[pos].W().substitute(S)));
+	endStep();
 	return *this;
 }
 Proof & Proof::MP (size_t p1, size_t p2) {
+	beginStep("MonPe");
 	m_contents.push_back(ProofContent(p1, p2, WffSubstitution(), Content_MP,
 				&wffMP(m_contents[p1].W(), m_contents[p2].W())));
+	endStep();
 	return *this;
 }
 
 Proof & Proof::Import (const Proof &P) {
+	beginStep("Impor");
 	if (!(P.m_axioms <= m_axioms))
 		Error("can not import");
 	size_t offset = m_contents.size();
@@ -63,6 +60,7 @@ Proof & Proof::Import (const Proof &P) {
 		C.addOffset(offset);
 		m_contents.push_back(C);
 	}
+	endStep();
 	return *this;
 }
 
@@ -73,6 +71,18 @@ Proof & Proof::Qed () {
 }
 
 Proof & Proof::Print () {
+	for (auto pair : m_steps) {
+		std::cout << pair.first << " " <<  pair.second << " "
+			<< m_contents[pair.second].W().Str() << std::endl;
+	}
+	if (!m_done) {
+		std::cout << "--------------" << std::endl;
+		std::cout << m_pW->Str() << std::endl;
+	}
+	return *this;
+}
+
+Proof & Proof::PrintAll () {
 	for (size_t i = 0; i < m_contents.size(); i ++) {
 		switch (m_contents[i].getType()) {
 			case Content_SUB: std::cout << "S "; break;
@@ -82,6 +92,17 @@ Proof & Proof::Print () {
 		std::cout << i << " ";
 		std::cout << m_contents[i].W().Str() << std::endl;
 	}
+	return *this;
+}
+
+Proof & Proof::beginStep (string s) {
+	if ((m_step_level ++) == 0)
+		m_step_string = s;
+	return *this;
+}
+Proof & Proof::endStep () {
+	if ((-- m_step_level) == 0)
+		m_steps.push_back(std::make_pair(m_step_string, m_contents.size() - 1));
 	return *this;
 }
 
